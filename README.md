@@ -28,16 +28,16 @@ If that helps Claude Code stay anchored to project instructions, it may be usefu
 
 ## Install
 
-If you want to install from the public GitHub repo:
-
-```bash
-pi install git:github.com/rawwerks/pi-reread-instructions
-```
-
-If you want to install from npm after the package is published:
+Install from npm:
 
 ```bash
 pi install npm:pi-reread-instructions
+```
+
+Or install directly from the public GitHub repo:
+
+```bash
+pi install git:github.com/rawwerks/pi-reread-instructions
 ```
 
 For a local checkout during development:
@@ -101,5 +101,6 @@ rg -n 'agents-reread-(delivery|payload-proof)|agents-reread-context' ~/.pi/agent
 
 - This repo is intentionally standalone and uses only Node built-ins.
 - The extension does not require editing or vendoring pi upstream.
+- The package is published on npm as `pi-reread-instructions`.
 - The package exposes the extension through the `pi` manifest in `package.json`.
 - Maintainer workflow lives in [DEVELOPING.md](./DEVELOPING.md).

@@ -1,7 +1,37 @@
 {
-  "name": "pi-reread-agents-md",
-  "private": true,
+  "name": "pi-reread-instructions",
   "type": "module",
-  "version": "0.0.0",
-  "description": "Standalone pi extension that re-inserts AGENTS.md / CLAUDE.md every N completed agent turns"
+  "version": "0.1.0",
+  "description": "Pi extension that re-inserts project instructions every N completed final assistant replies",
+  "license": "MIT",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "extension",
+    "instructions",
+    "agents",
+    "claude",
+    "context"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rawwerks/pi-reread-instructions.git"
+  },
+  "homepage": "https://github.com/rawwerks/pi-reread-instructions#readme",
+  "bugs": {
+    "url": "https://github.com/rawwerks/pi-reread-instructions/issues"
+  },
+  "files": [
+    "agents-reread.ts"
+  ],
+  "pi": {
+    "extensions": [
+      "./agents-reread.ts"
+    ]
+  },
+  "scripts": {
+    "test": "bun test",
+    "check": "bun test",
+    "pack:dry-run": "bun pm pack --dry-run"
+  }
 }

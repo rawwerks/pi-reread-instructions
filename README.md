@@ -1,6 +1,15 @@
-# pi-reread-agents-md
+# pi-reread-instructions
 
-Standalone pi extension that re-inserts `AGENTS.md` / `CLAUDE.md` into context every _N_ completed final agent replies, without modifying the pi upstream repo.
+Pi extension package that re-inserts `AGENTS.md` / `CLAUDE.md` into context every _N_ completed final assistant replies, without modifying the pi upstream repo.
+
+## Why
+
+This was inspired by recent Claude Code leak analysis suggesting that `CLAUDE.md` is re-included during prompt assembly:
+
+- [Claude Code Source Code Leak](https://superframeworks.com/articles/claude-code-source-code-leak)
+- [How Claude Code Builds a System Prompt](https://www.dbreunig.com/2026/04/04/how-claude-code-builds-a-system-prompt.html)
+
+If that helps Claude Code stay anchored to project instructions, it may be useful for pi too.
 
 ## Behavior
 
@@ -19,16 +28,33 @@ Standalone pi extension that re-inserts `AGENTS.md` / `CLAUDE.md` into context e
 
 ## Install
 
+Preferred package installs:
+
 ```bash
-cd ~/Documents/GitHub
-# after cloning this repo
-~/Documents/GitHub/pi-reread-agents-md/install.sh
+# after npm publish
+pi install npm:pi-reread-instructions
+
+# after the repo is public
+pi install git:github.com/rawwerks/pi-reread-instructions
+```
+
+For a local checkout during development:
+
+```bash
+pi install /absolute/path/to/pi-reread-instructions
+```
+
+If you want a direct editable symlink instead of a package install:
+
+```bash
+cd /path/to/pi-reread-instructions
+./install.sh
 ```
 
 That creates this symlink:
 
 ```bash
-~/.pi/agent/extensions/agents-reread.ts -> ~/Documents/GitHub/pi-reread-agents-md/agents-reread.ts
+~/.pi/agent/extensions/agents-reread.ts -> /path/to/pi-reread-instructions/agents-reread.ts
 ```
 
 ## Configuration
@@ -73,3 +99,5 @@ rg -n 'agents-reread-(delivery|payload-proof)|agents-reread-context' ~/.pi/agent
 
 - This repo is intentionally standalone and uses only Node built-ins.
 - The extension does not require editing or vendoring pi upstream.
+- The npm package exposes the extension through the `pi` manifest in `package.json`.
+- Maintainer workflow lives in [DEVELOPING.md](./DEVELOPING.md).

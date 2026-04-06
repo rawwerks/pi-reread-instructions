@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "gitleaks is required for commits in this repo, but it was not found on PATH." >&2
+  echo "Install gitleaks and retry." >&2
+  exit 1
+fi
+
+REPO_DIR="$(git rev-parse --show-toplevel)"
+cd "$REPO_DIR"
+
+echo "Running gitleaks on staged changes..."
+exec gitleaks git --staged --redact --no-banner --no-color --log-level warn "$REPO_DIR"

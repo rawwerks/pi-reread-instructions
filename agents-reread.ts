@@ -8,9 +8,11 @@ export const AGENTS_REREAD_STATE_TYPE = "agents-reread-state";
 export const AGENTS_REREAD_DELIVERY_TYPE = "agents-reread-delivery";
 export const AGENTS_REREAD_PAYLOAD_PROOF_TYPE = "agents-reread-payload-proof";
 export const AGENTS_REREAD_CONTEXT_MESSAGE_TYPE = "agents-reread-context";
+export const AGENTS_REREAD_COMMAND_NAME = "agents-reread";
 
 const CONTEXT_FILE_CANDIDATES = ["AGENTS.md", "CLAUDE.md"];
 const REFRESH_MARKER = "# AGENTS Refresh";
+const COUNT_MODE_LABEL = 'assistant messages with stopReason="stop"';
 
 function normalizeEvery(value) {
 	if (value === undefined) {
@@ -102,7 +104,7 @@ function formatRefreshMessage(files, completedTurns, every) {
 
 	return [
 		REFRESH_MARKER,
-		`This hidden reminder was injected automatically after ${completedTurns} completed agent turns (interval: ${every}).`,
+		`This hidden reminder was injected automatically after ${completedTurns} completed final assistant replies (interval: ${every}).`,
 		"Treat the following AGENTS.md / CLAUDE.md files as freshly re-read project instructions.",
 		renderedFiles,
 	].join("\n\n");
@@ -117,7 +119,7 @@ function isAssistantMessage(message) {
 }
 
 function isCompletedAssistantTurn(message) {
-	return isAssistantMessage(message) && message.stopReason !== "aborted" && message.stopReason !== "error";
+	return isAssistantMessage(message) && message.stopReason === "stop";
 }
 
 function countCompletedAssistantTurns(messages) {
@@ -233,17 +235,15 @@ function buildRefresh(cwd, completedTurns, every) {
 
 function createContextMessage(refresh) {
 	return {
-		role: "custom",
 		customType: AGENTS_REREAD_CONTEXT_MESSAGE_TYPE,
 		content: refresh.content,
 		display: false,
 		details: refresh.details,
-		timestamp: Date.now(),
 	};
 }
 
 function logProof(pi, refresh, phase) {
-	pi.appendEntry(phase === "context" ? AGENTS_REREAD_DELIVERY_TYPE : AGENTS_REREAD_PAYLOAD_PROOF_TYPE, {
+	pi.appendEntry(phase === "payload" ? AGENTS_REREAD_PAYLOAD_PROOF_TYPE : AGENTS_REREAD_DELIVERY_TYPE, {
 		phase,
 		marker: REFRESH_MARKER,
 		completedTurns: refresh.completedTurns,
@@ -265,6 +265,59 @@ function payloadContainsRefreshMarker(payload) {
 	}
 }
 
+function formatIntervalLabel(every) {
+	if (every <= 0) {
+		return "disabled";
+	}
+	if (every === 1) {
+		return "every final assistant reply";
+	}
+	return `every ${every} final assistant replies`;
+}
+
+function buildStatusMessage(state, configuredEvery) {
+	const lastRefresh = state.lastRefreshedCompletedTurns > 0 ? String(state.lastRefreshedCompletedTurns) : "never";
+	return [
+		`AGENTS reread: ${formatIntervalLabel(state.every)}`,
+		`Count mode: ${COUNT_MODE_LABEL}`,
+		`Completed final replies: ${state.completedTurns}`,
+		`Last injected refresh threshold: ${lastRefresh}`,
+		`Default interval: ${formatIntervalLabel(configuredEvery)}`,
+	].join("\n");
+}
+
+function parseCommandAction(args, configuredEvery) {
+	const trimmed = args.trim();
+	if (!trimmed || trimmed === "status") {
+		return { type: "status" };
+	}
+	if (trimmed === "off" || trimmed === "disable") {
+		return { type: "set", every: 0, description: "disabled" };
+	}
+	if (trimmed === "default" || trimmed === "reset") {
+		return {
+			type: "set",
+			every: configuredEvery,
+			description: `reset to default (${formatIntervalLabel(configuredEvery)})`,
+		};
+	}
+	if (/^-?\d+$/.test(trimmed)) {
+		const every = normalizeEvery(Number(trimmed));
+		return { type: "set", every, description: formatIntervalLabel(every) };
+	}
+	return {
+		type: "error",
+		message: `Usage: /${AGENTS_REREAD_COMMAND_NAME} [status|off|default|<positive-integer>]`,
+	};
+}
+
+function getCommandCompletions(prefix) {
+	const options = ["status", "off", "default", "1", "2", "3", "5", "10"];
+	const normalizedPrefix = prefix.trim();
+	const filtered = options.filter((option) => option.startsWith(normalizedPrefix));
+	return filtered.length > 0 ? filtered.map((value) => ({ value, label: value })) : null;
+}
+
 export function createAgentsRereadExtension(options = {}) {
 	return function agentsRereadExtension(pi) {
 		const configuredEvery = normalizeEvery(options.every ?? getConfiguredEveryFromEnv());
@@ -276,6 +329,27 @@ export function createAgentsRereadExtension(options = {}) {
 			activeRefresh = undefined;
 		};
 
+		const deliverRefresh = (ctx, phase) => {
+			if (!shouldInjectRefresh(state.completedTurns, state)) {
+				activeRefresh = undefined;
+				return false;
+			}
+
+			const refresh = buildRefresh(ctx.cwd, state.completedTurns, state.every);
+			if (!refresh) {
+				activeRefresh = undefined;
+				return false;
+			}
+
+			activeRefresh = refresh;
+			pi.sendMessage(createContextMessage(refresh));
+			logProof(pi, refresh, phase);
+			state.lastDeliveryProofCompletedTurns = refresh.completedTurns;
+			state.lastRefreshedCompletedTurns = refresh.completedTurns;
+			persistState(pi, state);
+			return true;
+		};
+
 		pi.on("session_start", async (_event, ctx) => {
 			rebuildState(ctx);
 		});
@@ -284,31 +358,37 @@ export function createAgentsRereadExtension(options = {}) {
 			rebuildState(ctx);
 		});
 
-		pi.on("context", async (event, ctx) => {
-			const completedTurns = countCompletedAssistantTurns(event.messages);
-			state.completedTurns = Math.max(state.completedTurns, completedTurns);
+		pi.registerCommand(AGENTS_REREAD_COMMAND_NAME, {
+			description: "Show or change AGENTS reread interval for this session",
+			getArgumentCompletions: getCommandCompletions,
+			handler: async (args, ctx) => {
+				const action = parseCommandAction(args, configuredEvery);
 
-			if (!shouldInjectRefresh(completedTurns, state)) {
-				activeRefresh = undefined;
-				return undefined;
-			}
+				if (action.type === "error") {
+					ctx.ui.notify(action.message, "warning");
+					return;
+				}
 
-			const refresh = buildRefresh(ctx.cwd, completedTurns, state.every);
-			if (!refresh) {
-				activeRefresh = undefined;
-				return undefined;
-			}
+				if (action.type === "status") {
+					ctx.ui.notify(buildStatusMessage(state, configuredEvery), "info");
+					return;
+				}
 
-			activeRefresh = refresh;
-			if (state.lastDeliveryProofCompletedTurns !== completedTurns) {
-				logProof(pi, refresh, "context");
-				state.lastDeliveryProofCompletedTurns = completedTurns;
+				state.every = action.every;
 				persistState(pi, state);
-			}
+				const delivered = deliverRefresh(ctx, "command");
+				ctx.ui.notify(
+					delivered
+						? `AGENTS reread ${action.description} for this session. Injected a refresh immediately.`
+						: `AGENTS reread ${action.description} for this session.`,
+					"info",
+				);
+			},
+		});
 
-			return {
-				messages: [...event.messages, createContextMessage(refresh)],
-			};
+		pi.on("context", async (event) => {
+			state.completedTurns = Math.max(state.completedTurns, countCompletedAssistantTurns(event.messages));
+			return undefined;
 		});
 
 		pi.on("before_provider_request", async (event) => {
@@ -328,19 +408,18 @@ export function createAgentsRereadExtension(options = {}) {
 			return undefined;
 		});
 
-		pi.on("turn_end", async (event) => {
+		pi.on("turn_end", async (event, ctx) => {
 			const completedTurn = isCompletedAssistantTurn(event.message);
 			if (completedTurn) {
 				state.completedTurns += 1;
-				if (activeRefresh && state.lastRefreshedCompletedTurns < activeRefresh.completedTurns) {
-					state.lastRefreshedCompletedTurns = activeRefresh.completedTurns;
-				}
+				deliverRefresh(ctx, "turn_end");
+			} else {
+				activeRefresh = undefined;
 			}
 
-			activeRefresh = undefined;
 			persistState(pi, state);
 		});
-		};
+	};
 }
 
 const configuredEvery = normalizeEvery(getConfiguredEveryFromEnv());

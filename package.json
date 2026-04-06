@@ -2,7 +2,8 @@
   "name": "pi-reread-instructions",
   "type": "module",
   "version": "0.1.0",
-  "description": "Pi extension that re-inserts project instructions every N completed final assistant replies",
+  "description": "Pi extension that re-inserts AGENTS.md / CLAUDE.md every N completed final assistant replies",
+  "author": "Raymond Weitekamp",
   "license": "MIT",
   "keywords": [
     "pi-package",

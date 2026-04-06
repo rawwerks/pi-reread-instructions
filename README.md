@@ -1,6 +1,6 @@
 # pi-reread-instructions
 
-Pi extension package that re-inserts `AGENTS.md` / `CLAUDE.md` into context every _N_ completed final assistant replies, without modifying the pi upstream repo.
+Pi extension package that re-inserts `AGENTS.md` / `CLAUDE.md` into context every _N_ completed final assistant replies.
 
 ## Why
 
@@ -28,14 +28,16 @@ If that helps Claude Code stay anchored to project instructions, it may be usefu
 
 ## Install
 
-Preferred package installs:
+If you want to install from the public GitHub repo:
 
 ```bash
-# after npm publish
-pi install npm:pi-reread-instructions
-
-# after the repo is public
 pi install git:github.com/rawwerks/pi-reread-instructions
+```
+
+If you want to install from npm after the package is published:
+
+```bash
+pi install npm:pi-reread-instructions
 ```
 
 For a local checkout during development:
@@ -99,5 +101,5 @@ rg -n 'agents-reread-(delivery|payload-proof)|agents-reread-context' ~/.pi/agent
 
 - This repo is intentionally standalone and uses only Node built-ins.
 - The extension does not require editing or vendoring pi upstream.
-- The npm package exposes the extension through the `pi` manifest in `package.json`.
+- The package exposes the extension through the `pi` manifest in `package.json`.
 - Maintainer workflow lives in [DEVELOPING.md](./DEVELOPING.md).

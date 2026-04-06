@@ -1,0 +1,7 @@
+{
+  "name": "pi-reread-agents-md",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "description": "Standalone pi extension that re-inserts AGENTS.md / CLAUDE.md every N completed agent turns"
+}
